@@ -1,6 +1,4 @@
-package encoder
-
-import "strconv"
+package models
 
 // A Level denotes a QR error correction level.
 // From least to most tolerant of errors, they are L, M, Q, H.
@@ -13,9 +11,17 @@ const (
 	H              // 65% redundant 30% recovery of the symbol codewords
 )
 
-func (l Level) String() string {
-	if L <= l && l <= H {
-		return "LMQH"[l : l+1]
+func ToLevel(bits uint32) Level {
+	switch bits {
+	case 0:
+		return M
+	case 1:
+		return L
+	case 2:
+		return H
+	case 3:
+		return Q
 	}
-	return strconv.Itoa(int(l))
+
+	return L
 }

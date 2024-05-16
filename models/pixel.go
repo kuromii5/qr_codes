@@ -1,6 +1,4 @@
-package encoder
-
-import "fmt"
+package models
 
 // A Pixel describes a single pixel in a QR code.
 type Pixel uint32
@@ -22,26 +20,11 @@ func OffsetPixel(o uint) Pixel {
 	return Pixel(o << 6)
 }
 
-func grid(size int) [][]Pixel {
+func Grid(size int) [][]Pixel {
 	m := make([][]Pixel, size)
 	pix := make([]Pixel, size*size)
 	for i := range m {
 		m[i], pix = pix[:size], pix[size:]
 	}
 	return m
-}
-
-func PrintGrid(grid [][]Pixel) {
-	for _, row := range grid {
-		for _, pixel := range row {
-			if pixel&Black != 0 {
-				fmt.Printf("1 ")
-			} else {
-				fmt.Printf("0 ")
-			}
-		}
-		fmt.Println()
-	}
-
-	fmt.Println("-------------------------------------------")
 }

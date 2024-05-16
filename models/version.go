@@ -1,8 +1,4 @@
-package encoder
-
-import (
-	"strconv"
-)
+package models
 
 // A Version represents a QR version.
 // The version specifies the size of the QR code:
@@ -29,7 +25,6 @@ type ECLevelData struct {
 const MinVersion = 1
 const MaxVersion = 40
 
-// table from rsc.io/qr
 var VTable = []vData{
 	{},
 	{100, 100, 26, 0x0, [4]ECLevelData{{1, 7}, {1, 10}, {1, 13}, {1, 17}}},          // 1
@@ -74,10 +69,6 @@ var VTable = []vData{
 	{28, 28, 3706, 0x28c69, [4]ECLevelData{{25, 30}, {49, 28}, {68, 30}, {81, 30}}}, // 40
 }
 
-func (v Version) String() string {
-	return strconv.Itoa(int(v))
-}
-
 func (v Version) SizeClass() int {
 	if v <= 9 {
 		return 0
@@ -91,7 +82,7 @@ func (v Version) SizeClass() int {
 // DataBytes returns the number of data bytes that can be
 // stored in a QR code with the given version and level.
 func (v Version) DataBytes(l Level) int {
-	vt := &VTable[v]
-	lev := &vt.ECLevel[l]
-	return vt.Bytes - lev.Blocks*lev.Codewords
+	vData := &VTable[v]
+	level := &vData.ECLevel[l]
+	return vData.Bytes - level.Blocks*level.Codewords
 }

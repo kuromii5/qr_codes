@@ -1,9 +1,33 @@
 package encoder
 
+import (
+	"fmt"
+
+	"github.com/kuromii5/qr_codes/models"
+)
+
 type Bits struct {
 	bits   []byte
 	length int
 }
+
+func (b *Bits) Print() {
+	paddedLength := b.length + (8-(b.length%8))%8
+	for i := 0; i < paddedLength; i++ {
+		if b.bits[i/8]&(1<<(7-i%8)) != 0 {
+			fmt.Print("1")
+		} else {
+			fmt.Print("0")
+		}
+		if (i+1)%8 == 0 {
+			fmt.Print(" ")
+		}
+	}
+	fmt.Println()
+}
+
+// padding bytes
+var padBytes = []uint{0xec, 0x11}
 
 func (b *Bits) Reset() {
 	b.bits = b.bits[:0]
@@ -21,85 +45,80 @@ func (b *Bits) Bytes() []byte {
 	return b.bits
 }
 
-func (b *Bits) Append(p []byte) {
+// appends byte string to the bit stream
+func (b *Bits) Append(data []byte) {
 	if b.length%8 != 0 {
 		panic("fractional byte")
 	}
-	b.bits = append(b.bits, p...)
-	b.length += 8 * len(p)
+	b.bits = append(b.bits, data...)
+	b.length += 8 * len(data)
 }
 
-func (b *Bits) Write(v uint, length int) {
+// writes value of particular length to the bit stream
+func (b *Bits) Write(value uint, length int) {
 	for length > 0 {
-		n := length
-		if n > 8 {
-			n = 8
+		bitsToWrite := length
+		if bitsToWrite > 8 {
+			bitsToWrite = 8
 		}
 		if b.length%8 == 0 {
 			b.bits = append(b.bits, 0)
 		} else {
-			m := -b.length & 7
-			if n > m {
-				n = m
+			available := -b.length & 7
+			if bitsToWrite > available {
+				bitsToWrite = available
 			}
 		}
-		b.length += n
-		sh := uint(length - n)
-		b.bits[len(b.bits)-1] |= uint8(v >> sh << uint(-b.length&7))
-		v -= v >> sh << sh
-		length -= n
+		b.length += bitsToWrite
+		shift := uint(length - bitsToWrite)
+		b.bits[len(b.bits)-1] |= uint8(value >> shift << uint(-b.length&7))
+		value -= value >> shift << shift
+		length -= bitsToWrite
 	}
 }
 
-func (b *Bits) Pad(n int) {
-	if n < 0 {
-		panic("qr: invalid pad size")
-	}
-	if n <= 4 {
-		b.Write(0, n)
+// adds padding to bit stream until target length (to max capacity for given version)
+func (b *Bits) Pad(targetLength int) {
+	if targetLength <= 4 {
+		b.Write(0, targetLength)
 	} else {
 		b.Write(0, 4)
-		n -= 4
-		n -= -b.Length() & 7
+		targetLength -= 4
+		targetLength -= -b.Length() & 7
 		b.Write(0, -b.Length()&7)
-		pad := n / 8
-		for i := 0; i < pad; i += 2 {
-			b.Write(0xec, 8)
-			if i+1 >= pad {
-				break
-			}
-			b.Write(0x11, 8)
+		remainingBytes := targetLength / 8
+		for i := 0; i < remainingBytes; i++ {
+			b.Write(padBytes[i%2], 8)
 		}
 	}
 }
 
 // adds error correction bytes
-func (b *Bits) AddECBytes(v Version, l Level) {
-	nd := v.DataBytes(l)
-	if b.length < nd*8 {
-		b.Pad(nd*8 - b.length)
-	}
-	if b.length != nd*8 {
-		panic("qr: too much data")
+func (b *Bits) AddECBytes(v models.Version, l models.Level) {
+	// pad bytes if data bytes required for current
+	// version are not fullfilled by encoded data
+	bytes := v.DataBytes(l)
+	if b.length < bytes*8 {
+		b.Pad(bytes*8 - b.length)
 	}
 
-	dat := b.Bytes()
-	vt := &VTable[v]
-	lev := &vt.ECLevel[l]
-	db := nd / lev.Blocks
-	extra := nd % lev.Blocks
-	codewords := make([]byte, lev.Codewords)
-	rs := NewRSEncoder(GField, lev.Codewords)
-	for i := 0; i < lev.Blocks; i++ {
-		if i == lev.Blocks-extra {
-			db++
+	data := b.Bytes()
+	vInfo := &models.VTable[v]
+	level := &vInfo.ECLevel[l]
+	bytesPerBlock := bytes / level.Blocks
+	extra := bytes % level.Blocks
+	codewords := make([]byte, level.Codewords)
+	encoder := models.NewRSEncoder(models.GField, level.Codewords)
+	for i := 0; i < level.Blocks; i++ {
+		if i == level.Blocks-extra {
+			bytesPerBlock++
 		}
-		rs.ECC(dat[:db], codewords)
+		encoder.AddECC(data[:bytesPerBlock], codewords)
 		b.Append(codewords)
-		dat = dat[db:]
+		data = data[bytesPerBlock:]
 	}
 
-	if len(b.Bytes()) != vt.Bytes {
+	if len(b.Bytes()) != vInfo.Bytes {
 		panic("qr: internal error")
 	}
 }

@@ -9,15 +9,17 @@ import (
 	"testing"
 
 	"github.com/kuromii5/qr_codes/encoder"
+	"github.com/kuromii5/qr_codes/models"
+	"github.com/kuromii5/qr_codes/utils"
 )
 
-func TestPNG(t *testing.T) {
-	c, err := encoder.Encode("https://www.youtube.com/watch?v=dQw4w9WgXcQ&ab_channel=RickAstley", encoder.L)
+func TestEncodePNG(t *testing.T) {
+	qrCode, err := encoder.Encode("HELLO WORLD", models.Q)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	pngdat := c.PNG()
+	pngdat := utils.PNG(qrCode)
 	os.WriteFile("qr.png", pngdat, 0666)
 
 	m, err := png.Decode(bytes.NewBuffer(pngdat))
@@ -26,13 +28,13 @@ func TestPNG(t *testing.T) {
 	}
 
 	gm := m.(*image.Gray)
-	scale := c.Scale
-	siz := c.Size
+	scale := qrCode.Scale
+	size := qrCode.Size
 	nbad := 0
-	for y := 0; y < scale*(8+siz); y++ {
-		for x := 0; x < scale*(8+siz); x++ {
+	for y := 0; y < scale*(8+size); y++ {
+		for x := 0; x < scale*(8+size); x++ {
 			v := byte(255)
-			if c.Black(x/scale-4, y/scale-4) {
+			if qrCode.Black(x/scale-4, y/scale-4) {
 				v = 0
 			}
 			if gv := gm.At(x, y).(color.Gray).Y; gv != v {

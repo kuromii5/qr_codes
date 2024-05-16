@@ -1,4 +1,4 @@
-package encoder
+package models
 
 // A Mask describes a mask that is applied to the QR
 // code to avoid QR artifacts being interpreted as

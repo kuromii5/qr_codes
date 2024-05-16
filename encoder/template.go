@@ -2,23 +2,25 @@ package encoder
 
 import (
 	"fmt"
+
+	"github.com/kuromii5/qr_codes/models"
 )
 
 // A Template describes how to construct a QR code
 // with a specific version, level, and mask.
 type Template struct {
-	Version Version
-	Level   Level
-	Mask    Mask
+	Version models.Version
+	Level   models.Level
+	Mask    models.Mask
 
 	DataBytes  int // number of data bytes
 	CheckBytes int // number of error correcting (checksum) bytes
 	Blocks     int // number of data blocks
 
-	Grid [][]Pixel // pixel grid
+	Grid [][]models.Pixel // pixel grid
 }
 
-func (template *Template) Encode(text ...Encoding) (*QRCode, error) {
+func (template *Template) Encode(text ...Encoding) (*models.QRCode, error) {
 	var bits Bits
 	for _, t := range text {
 		if err := t.Check(); err != nil {
@@ -32,32 +34,37 @@ func (template *Template) Encode(text ...Encoding) (*QRCode, error) {
 	bits.AddECBytes(template.Version, template.Level)
 	bytes := bits.Bytes()
 
-	// Now we have the error correction bytes and the data bytes.
-	// Construct the actual code.
-	qr := &QRCode{Size: len(template.Grid), Stride: (len(template.Grid) + 7) &^ 7}
+	// now we have the error correction bytes and the data bytes.
+	// construct the actual qr code.
+	qr := &models.QRCode{
+		Size:   len(template.Grid),
+		Stride: (len(template.Grid) + 7) &^ 7, // make stride dividable by 8
+	}
+
 	qr.Bitmap = make([]byte, qr.Stride*qr.Size)
-	crow := qr.Bitmap
+	currentRow := qr.Bitmap
 	for _, row := range template.Grid {
 		for x, pix := range row {
 			switch pix.Type() {
-			case Data, EC:
-				o := pix.Offset()
-				if bytes[o/8]&(1<<uint(7-o&7)) != 0 {
-					pix ^= Black
+			case models.Data, models.EC:
+				offset := pix.Offset()
+				if bytes[offset/8]&(1<<uint(7-offset&7)) != 0 {
+					pix ^= models.Black
 				}
 			}
-			if pix&Black != 0 {
-				crow[x/8] |= 1 << uint(7-x&7)
+			if pix&models.Black != 0 {
+				currentRow[x/8] |= 1 << uint(7-x&7)
 			}
 		}
-		crow = crow[qr.Stride:]
+		currentRow = currentRow[qr.Stride:]
 	}
+
 	return qr, nil
 }
 
 // NewTemplate returns a template (or "blueprint") for a QR code with the given
 // version, level, and mask.
-func NewTemplate(version Version, level Level, mask Mask) *Template {
+func NewTemplate(version models.Version, level models.Level, mask models.Mask) *Template {
 	qrTemplate := createVersionTemplate(version)
 	createFormatInfo(level, mask, qrTemplate)
 	createData(version, level, qrTemplate)
@@ -68,21 +75,21 @@ func NewTemplate(version Version, level Level, mask Mask) *Template {
 // createVersionTemplate creates a Template for the given version.
 // It draws timing patterns, finder patterns, alignment patterns
 // and version patterns.
-func createVersionTemplate(v Version) *Template {
+func createVersionTemplate(v models.Version) *Template {
 	template := &Template{Version: v}
 
 	size := 17 + int(v)*4
-	grid := grid(size)
+	grid := models.Grid(size)
 	template.Grid = grid
 
 	// Timing patterns (overwritten by boxes).
 	const tPos = 6 // timing is in row/column 6 (counting from 0)
 	for i := range grid {
-		p := Timing.Pixel()
+		p := models.Timing.Pixel()
 
 		// Check if even
 		if i&1 == 0 {
-			p |= Black
+			p |= models.Black
 		}
 
 		grid[i][tPos] = p
@@ -95,7 +102,7 @@ func createVersionTemplate(v Version) *Template {
 	finderPattern(grid, 0, size-7)
 
 	// Alignment patterns (small boxes that help scanner to identify the grid).
-	vInfo := &VTable[v]
+	vInfo := &models.VTable[v]
 	for x := 4; x+5 < size; {
 		for y := 4; y+5 < size; {
 			// don't overwrite timing markers
@@ -117,14 +124,14 @@ func createVersionTemplate(v Version) *Template {
 	}
 
 	// Version patterns.
-	vPattern := VTable[v].Pattern
+	vPattern := models.VTable[v].Pattern
 	if vPattern != 0 {
 		v := vPattern
 		for x := 0; x < 6; x++ {
 			for y := 0; y < 3; y++ {
-				p := PVersion.Pixel()
+				p := models.PVersion.Pixel()
 				if v&1 != 0 {
-					p |= Black
+					p |= models.Black
 				}
 				grid[size-11+y][x] = p
 				grid[x][size-11+y] = p
@@ -134,22 +141,20 @@ func createVersionTemplate(v Version) *Template {
 	}
 
 	// One lonely black pixel
-	grid[size-8][8] = Unused.Pixel() | Black
+	grid[size-8][8] = models.DarkModule.Pixel() | models.Black
 	return template
 }
 
 // createFormatInfo adds the format pixels
-func createFormatInfo(level Level, mask Mask, template *Template) {
+func createFormatInfo(level models.Level, mask models.Mask, template *Template) {
 	formatData := uint32(level^1) << 13 // levels: L=01, M=00, Q=11, H=10
 	formatData |= uint32(mask) << 10    // apply given mask
-
-	const formatPoly = 0x537 // polynomial G(x) = x^10 + x^8 + x^5 + x^4 + x^2 + x + 1
 
 	// add the remainder of polynomial division to the data
 	remainder := formatData
 	for i := 14; i >= 10; i-- {
 		if remainder&(1<<uint(i)) != 0 {
-			remainder ^= formatPoly << uint(i-10)
+			remainder ^= models.FormatPoly << uint(i-10)
 		}
 	}
 	formatData |= remainder
@@ -157,16 +162,16 @@ func createFormatInfo(level Level, mask Mask, template *Template) {
 	invert := uint32(0x5412) // mask for format info
 	size := len(template.Grid)
 	for i := uint(0); i < 15; i++ {
-		pix := Format.Pixel() + OffsetPixel(i)
+		pix := models.Format.Pixel() + models.OffsetPixel(i)
 
 		// if data bit equals 1 make pixel black
 		if (formatData>>i)&1 == 1 {
-			pix |= Black
+			pix |= models.Black
 		}
 
 		// if mask bit equals 1 then invert pixel color
 		if (invert>>i)&1 == 1 {
-			pix ^= White | Black
+			pix ^= models.White | models.Black
 		}
 
 		// top left
@@ -192,73 +197,75 @@ func createFormatInfo(level Level, mask Mask, template *Template) {
 
 // createData edits a version-only template
 // to add error correction level info.
-func createData(v Version, level Level, template *Template) {
+func createData(v models.Version, level models.Level, template *Template) {
 	template.Level = level
 
-	codewords := VTable[v].Bytes                            // total number of codewords
-	blocks := VTable[v].ECLevel[level].Blocks               // total number of EC blocks
-	numberECC := VTable[v].ECLevel[level].Codewords         // total number of Error Correction Codewords
-	numberDataEC := (codewords - numberECC*blocks) / blocks // total number of data error codewords per block
-	extra := (codewords - numberECC*blocks) % blocks        // extra data error codewords
-	dataBits := (numberDataEC*blocks + extra) * 8           // total number of data bits (or pixels)
-	checkBits := numberECC * blocks * 8                     // total number of error correction bits
+	vInfo := models.VTable[v]
+	codewords := vInfo.Bytes                    // total number of codewords
+	blocks := vInfo.ECLevel[level].Blocks       // total number of EC blocks
+	numberECC := vInfo.ECLevel[level].Codewords // total number of Error Correction Codewords
+
+	dataBytes := (codewords - numberECC*blocks) / blocks // total number of data codewords per block
+	extra := (codewords - numberECC*blocks) % blocks     // extra bytes
+	dataBits := (dataBytes*blocks + extra) * 8           // total number of data bits (or pixels)
+	ECBits := numberECC * blocks * 8                     // total number of error correction bits
 
 	template.DataBytes = codewords - numberECC*blocks
 	template.CheckBytes = numberECC * blocks
 	template.Blocks = blocks
 
-	// Make data + checksum pixels.
-	data := make([]Pixel, dataBits)
+	// make data + checksum pixels.
+	data := make([]models.Pixel, dataBits)
 	for i := range data {
-		data[i] = Data.Pixel() | OffsetPixel(uint(i))
+		data[i] = models.Data.Pixel() | models.OffsetPixel(uint(i))
 	}
-	check := make([]Pixel, checkBits)
-	for i := range check {
-		check[i] = EC.Pixel() | OffsetPixel(uint(i+dataBits))
+	ECPixels := make([]models.Pixel, ECBits)
+	for i := range ECPixels {
+		ECPixels[i] = models.EC.Pixel() | models.OffsetPixel(uint(i+dataBits))
 	}
 
-	// Split all data into 8 bit blocks.
-	dataList := make([][]Pixel, blocks)
-	checkList := make([][]Pixel, blocks)
+	// split all data into 8 bit blocks.
+	dataBytesList := make([][]models.Pixel, blocks)
+	ECBytesList := make([][]models.Pixel, blocks)
 	for i := 0; i < blocks; i++ {
 		// The last few blocks have an extra data byte (8 pixels).
-		nd := numberDataEC
+		nd := dataBytes
 		if i >= blocks-extra {
 			nd++
 		}
-		dataList[i], data = data[0:nd*8], data[nd*8:]
-		checkList[i], check = check[0:numberECC*8], check[numberECC*8:]
+		dataBytesList[i], data = data[0:nd*8], data[nd*8:]
+		ECBytesList[i], ECPixels = ECPixels[0:numberECC*8], ECPixels[numberECC*8:]
 	}
 
-	// Build up bit sequence, taking first byte of each block,
-	// then second byte, and so on. Then checksums.
-	bits := make([]Pixel, dataBits+checkBits)
+	// build up bit sequence, taking 8 bits on each iteration
+	bits := make([]models.Pixel, dataBits+ECBits)
 	dst := bits
-	for i := 0; i < numberDataEC+1; i++ {
-		for _, b := range dataList {
+	for i := 0; i < dataBytes+1; i++ {
+		for _, b := range dataBytesList {
 			if i*8 < len(b) {
-				copy(dst, b[i*8:(i+1)*8])
+				copy(dst, b[i*8:(i+1)*8]) // copy 8 bits
 				dst = dst[8:]
 			}
 		}
 	}
 	for i := 0; i < numberECC; i++ {
-		for _, b := range checkList {
+		for _, b := range ECBytesList {
 			if i*8 < len(b) {
-				copy(dst, b[i*8:(i+1)*8])
+				copy(dst, b[i*8:(i+1)*8]) // copy 8 bits
 				dst = dst[8:]
 			}
 		}
 	}
 
-	// Sweep up pair of columns,
-	// then down, assigning to right then left pixel.
+	// add extra bits
 	size := len(template.Grid)
-	remPixels := make([]Pixel, 7)
+	remPixels := make([]models.Pixel, 7)
 	for i := range remPixels {
-		remPixels[i] = Extra.Pixel()
+		remPixels[i] = models.Extra.Pixel()
 	}
 	src := append(bits, remPixels...)
+
+	// fill the grid with data
 	for x := size; x > 0; {
 		for y := size - 1; y >= 0; y-- {
 			if template.Grid[y][x-1].Type() == 0 {
@@ -285,26 +292,26 @@ func createData(v Version, level Level, template *Template) {
 }
 
 // applyMask edits a version+level-only template to add the mask.
-func applyMask(mask Mask, template *Template) {
+func applyMask(mask models.Mask, template *Template) {
 	template.Mask = mask
 	for y, row := range template.Grid {
 		for x, pix := range row {
-			if pType := pix.Type(); (pType == Data || pType == EC || pType == Extra) && template.Mask.Invert(y, x) {
-				row[x] ^= Black | White
+			if pType := pix.Type(); (pType == models.Data || pType == models.EC || pType == models.Extra) && template.Mask.Invert(y, x) {
+				row[x] ^= models.Black | models.White
 			}
 		}
 	}
 }
 
 // finderPattern draws a box at given x, y
-func finderPattern(m [][]Pixel, x, y int) {
-	pos := Finder.Pixel()
+func finderPattern(m [][]models.Pixel, x, y int) {
+	pos := models.Finder.Pixel()
 	// box
 	for dy := 0; dy < 7; dy++ {
 		for dx := 0; dx < 7; dx++ {
 			p := pos
 			if dx == 0 || dx == 6 || dy == 0 || dy == 6 || 2 <= dx && dx <= 4 && 2 <= dy && dy <= 4 {
-				p |= Black
+				p |= models.Black
 			}
 			m[y+dy][x+dx] = p
 		}
@@ -335,14 +342,14 @@ func finderPattern(m [][]Pixel, x, y int) {
 }
 
 // alignPattern draw an alignment (small) box
-func alignPattern(m [][]Pixel, x, y int) {
+func alignPattern(m [][]models.Pixel, x, y int) {
 	// box
-	align := Alignment.Pixel()
+	align := models.Alignment.Pixel()
 	for dy := 0; dy < 5; dy++ {
 		for dx := 0; dx < 5; dx++ {
 			p := align
 			if dx == 0 || dx == 4 || dy == 0 || dy == 4 || dx == 2 && dy == 2 {
-				p |= Black
+				p |= models.Black
 			}
 			m[y+dy][x+dx] = p
 		}

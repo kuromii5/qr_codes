@@ -1,4 +1,4 @@
-package encoder
+package models
 
 // PNG writer for QR codes.
 
