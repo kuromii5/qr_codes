@@ -1,4 +1,4 @@
-package decoder
+package pngdecode
 
 import (
 	"bufio"
@@ -7,6 +7,8 @@ import (
 	"github.com/tuotoo/qrcode"
 )
 
+// using special library to ensure that
+// encoding working well
 func ReadQRCode(filename string) (*qrcode.Matrix, error) {
 	file, err := os.Open(filename)
 	if err != nil {

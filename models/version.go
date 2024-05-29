@@ -86,3 +86,7 @@ func (v Version) DataBytes(l Level) int {
 	level := &vData.ECLevel[l]
 	return vData.Bytes - level.Blocks*level.Codewords
 }
+
+func (v Version) GetPixelSize() int {
+	return (4 * int(v)) + 17
+}

@@ -20,7 +20,7 @@ type Template struct {
 	Grid [][]models.Pixel // pixel grid
 }
 
-func (template *Template) Encode(text ...Encoding) (*models.QRCode, error) {
+func (template *Template) Encode(text ...Encoder) (*models.QRCode, error) {
 	var bits Bits
 	for _, t := range text {
 		if err := t.Check(); err != nil {
@@ -266,28 +266,27 @@ func createData(v models.Version, level models.Level, template *Template) {
 	src := append(bits, remPixels...)
 
 	// fill the grid with data
-	for x := size; x > 0; {
+	for x := size - 1; x > 0; x -= 2 {
 		for y := size - 1; y >= 0; y-- {
+			if template.Grid[y][x].Type() == 0 {
+				template.Grid[y][x], src = src[0], src[1:]
+			}
 			if template.Grid[y][x-1].Type() == 0 {
 				template.Grid[y][x-1], src = src[0], src[1:]
 			}
-			if template.Grid[y][x-2].Type() == 0 {
-				template.Grid[y][x-2], src = src[0], src[1:]
-			}
 		}
 		x -= 2
-		if x == 7 { // vertical timing pattern
+		if x == 6 { // vertical timing pattern
 			x--
 		}
 		for y := 0; y < size; y++ {
+			if template.Grid[y][x].Type() == 0 {
+				template.Grid[y][x], src = src[0], src[1:]
+			}
 			if template.Grid[y][x-1].Type() == 0 {
 				template.Grid[y][x-1], src = src[0], src[1:]
 			}
-			if template.Grid[y][x-2].Type() == 0 {
-				template.Grid[y][x-2], src = src[0], src[1:]
-			}
 		}
-		x -= 2
 	}
 }
 

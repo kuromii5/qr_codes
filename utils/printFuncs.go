@@ -44,16 +44,18 @@ func PrintQRBitmap(qr *models.QRCode) {
 	for i := 0; i < len(matrix); i++ {
 		for j := 0; j < len(matrix); j++ {
 			if matrix[i][j] == 1 {
-				fmt.Print("■ ") // Черный пиксель
+				fmt.Print("■ ") // Black data pixel
+			} else if matrix[i][j] == 0 {
+				fmt.Print("□ ") // White data pixel
 			} else {
-				fmt.Print("□ ") // Белый пиксель
+				fmt.Print("  ") // Pattern pixel
 			}
 		}
 		fmt.Println()
 	}
 }
 
-func PrintLevel(l models.Level) string {
+func ReturnLevel(l models.Level) string {
 	if models.L <= l && l <= models.H {
 		return "LMQH"[l : l+1]
 	}

@@ -11,6 +11,13 @@ type Bits struct {
 	length int
 }
 
+func NewBits(bits []byte, length int) Bits {
+	return Bits{
+		bits:   bits,
+		length: length,
+	}
+}
+
 func (b *Bits) Print() {
 	paddedLength := b.length + (8-(b.length%8))%8
 	for i := 0; i < paddedLength; i++ {

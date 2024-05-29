@@ -1,33 +1,11 @@
-package decoder
+package qrdecode
 
 import (
-	"fmt"
-
 	"github.com/kuromii5/qr_codes/models"
 	"github.com/kuromii5/qr_codes/utils"
 )
 
-func Decode(qr *models.QRCode) string {
-	var result string
-
-	utils.PrintQRBitmap(qr)
-	qrMatrix := qr.CreateBitmapMatrix()
-
-	level, mask := GetFormatInfo(qrMatrix)
-
-	var version models.Version
-	if len(qrMatrix) >= 39 {
-		version = GetVersionInfo(qrMatrix)
-	}
-
-	// read other stuff
-
-	fmt.Println(utils.PrintLevel(level), mask, version)
-
-	return result
-}
-
-func GetFormatInfo(matrix [][]byte) (models.Level, models.Mask) {
+func getFormatInfo(matrix [][]byte) (models.Level, models.Mask) {
 	formatInfo1 := uint32(0)
 	formatInfo2 := uint32(0)
 
@@ -70,7 +48,7 @@ func GetFormatInfo(matrix [][]byte) (models.Level, models.Mask) {
 	return level, mask
 }
 
-func GetVersionInfo(matrix [][]byte) models.Version {
+func getVersionInfo(matrix [][]byte) models.Version {
 	versionInfo1 := []byte{}
 	versionInfo2 := []byte{}
 

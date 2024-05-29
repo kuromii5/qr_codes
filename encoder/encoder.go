@@ -6,11 +6,11 @@ import (
 	"github.com/kuromii5/qr_codes/models"
 )
 
-// Encoding implements a QR data encoding scheme.
+// Encoder implements a QR data encoding scheme.
 // Modes - Numeric, Alphanumeric, and String (Byte mode)
 // the character set and the mapping from UTF-8 to code bits.
 // The more restrictive the mode, the fewer code bits are needed.
-type Encoding interface {
+type Encoder interface {
 	Check() error
 	Bits(v models.Version) int
 	Encode(b *Bits, v models.Version)
@@ -19,10 +19,10 @@ type Encoding interface {
 // Encode returns an encoding of text at the given error correction level.
 func Encode(text string, level models.Level) (*models.QRCode, error) {
 	// Pick data encoding, smallest first.
-	var enc Encoding
+	var enc Encoder
 	switch {
-	case Num(text).Check() == nil:
-		enc = Num(text)
+	case Numeric(text).Check() == nil:
+		enc = Numeric(text)
 	case Alphanumeric(text).Check() == nil:
 		enc = Alphanumeric(text)
 	default:
@@ -42,7 +42,6 @@ func Encode(text string, level models.Level) (*models.QRCode, error) {
 	}
 
 	// Build and execute template.
-	// TODO: Pick appropriate mask.
 	template := NewTemplate(v, l, 0)
 
 	// Build actual QR code and encode the given data

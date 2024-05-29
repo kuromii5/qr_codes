@@ -14,7 +14,7 @@ import (
 )
 
 func TestEncodePNG(t *testing.T) {
-	qrCode, err := encoder.Encode("HELLO WORLD", models.Q)
+	qrCode, err := encoder.Encode("HELLO WORLD", models.L)
 	if err != nil {
 		t.Fatal(err)
 	}
